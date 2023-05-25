@@ -2,7 +2,20 @@ const { parseEther } = require("@ethersproject/units")
 const sleep = require('util').promisify(setTimeout)
 const { getStats, predictionContract, getBNBPrice, checkBalance, reduceWaitingTimeByTwoBlocks, saveRound } = require("./lib")
 const { TradingViewScan, SCREENERS_ENUM, EXCHANGES_ENUM, INTERVALS_ENUM } = require("trading-view-recommends-parser-nodejs")
+const axios = require('axios');
 
+// 创建代理实例
+const proxyInstance = axios.create({
+  proxy: {
+    host: '192.168.1.102',
+    port: 7890,
+    // 可选：如果代理服务器需要身份验证，请提供以下选项
+    // auth: {
+    //   username: 'your_username',
+    //   password: 'your_password'
+    // }
+  }
+});
 // Global Config
 const GLOBAL_CONFIG = {
     BET_AMOUNT: 3, // in USD
@@ -42,25 +55,29 @@ const betDown = async (amount, epoch) => {
 //Check Signals
 const getSignals = async () => {
     //1 Minute signals
+    // console.log("00000")
     let resultMin = await new TradingViewScan(
         SCREENERS_ENUM["crypto"],
         EXCHANGES_ENUM["BINANCE"],
         "BNBUSDT",
-        INTERVALS_ENUM["1m"]
+        INTERVALS_ENUM["1m"],
+        proxyInstance
     ).analyze()
+    // console.log(resultMin,"11111")
     let minObj = JSON.stringify(resultMin.summary)
     let minRecomendation = JSON.parse(minObj)
 
+    // console.log(minObj,"22222")
     //5 Minute signals
     let resultMed = await new TradingViewScan(
         SCREENERS_ENUM["crypto"], 
         EXCHANGES_ENUM["BINANCE"],
         "BNBUSDT",
-        INTERVALS_ENUM["5m"]
+        INTERVALS_ENUM["5m"],
+        proxyInstance
     ).analyze()
     let medObj = JSON.stringify(resultMed.summary)
     let medRecomendation = JSON.parse(medObj)
-
     //Average signals
     if (minRecomendation && medRecomendation) {
         let averageBuy = (parseInt(minRecomendation.BUY) + parseInt(medRecomendation.BUY)) / 2
@@ -94,9 +111,12 @@ const strategy = async (minAcurracy, epoch) => {
     try {
         BNBPrice = await getBNBPrice()
     } catch (err) {
+        console.log("Error obtaining BNB price", err)
         return
     }
+    console.log("get signal start ")
     let signals = await getSignals()
+    console.log("get signal : ",signals)
     if (signals) {
         if (signals.buy > signals.sell && percentage(signals.buy, signals.sell) > minAcurracy) {
             console.log(`${epoch.toString()} 🔮 Prediction: UP 🟢 ${percentage(signals.buy, signals.sell)}%`)
@@ -122,7 +142,28 @@ const strategy = async (minAcurracy, epoch) => {
 
 //Check balance
 checkBalance(GLOBAL_CONFIG.AMOUNT_TO_BET)
+async function testGetBNB() {
+    try {
+      console.log("connect to get bnb price....");
+      const result = await getBNBPrice();
+      console.log("result:",result);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+  async function testGetSignal() {
+    try {
+      console.log("connect to get signal....");
+      const result = await getSignals();
+      console.log("result:",result);
+    } catch (error) {
+      console.error(error);
+    }
+  }
 console.log('🤗 Welcome! Waiting for next round...')
+
+testGetBNB()
+testGetSignal()
 
 //Betting
 predictionContract.on("StartRound", async (epoch) => {

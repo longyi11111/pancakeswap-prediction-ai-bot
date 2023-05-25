@@ -6,7 +6,6 @@ const Big = require('big.js')
 const abi = require('./abi.json')
 const fs = require('fs')
 const _ = require("lodash")
-const fetch = require('cross-fetch')
 let prediction = 0
 
 const reduceWaitingTimeByTwoBlocks = (waitingTime) => {
@@ -22,7 +21,16 @@ if (result.error) {
 }
 
 const Web3 = require('web3')
-const w = new Web3(process.env.BSC_RPC)
+const HttpProvider = require('web3-providers-http');
+
+// 创建代理对象
+const proxyHost = 'http://127.0.0.1';
+const proxyPort = 8222;
+const proxy = new HttpProvider(proxyHost, proxyPort);
+
+const w = new Web3(proxy)
+w.setProvider(new HttpProvider(process.env.BSC_RPC));
+// const w = new Web3(process.env.BSC_RPC)
 
 const wallet = w.eth.accounts.wallet.add(w.eth.accounts.privateKeyToAccount(process.env.PRIVATE_KEY))
 w.eth.defaultAccount = w.eth.accounts.privateKeyToAccount(process.env.PRIVATE_KEY).address
@@ -167,6 +175,7 @@ const getStats = async () => {
     let loss = 0
 
     if (history && BNBPrice) {
+        // console.log(history, BNBPrice)
         for (let i = 0; i < history.length; i++) {
             roundEarnings = 0
             if (history[i].bet && history[i].winner) {
@@ -202,10 +211,15 @@ const percentageChange = (a, b) => {
     return ((b - a) * 100) / a
 }
 
+const fetch = require('cross-fetch')
+// const fetch = require('node-fetch')
+const proxyUrl = 'http://127.0.0.1:8222';
+const { HttpsProxyAgent } = require('https-proxy-agent');
+const agent = new HttpsProxyAgent(proxyUrl);
 const getBNBPrice = async () => {
     const apiUrl = "https://api.binance.com/api/v3/ticker/price?symbol=BNBUSDT"
     try {
-        const res = await fetch(apiUrl)
+        const res = await fetch(apiUrl, {agent})
         if (res.status >= 400) {
             throw new Error("Bad response from server")
         }
